@@ -17,46 +17,82 @@ MooseModelAgregator class >> agregate: aMooseModel [
 		agregatedModel: (MooseModel named: aMooseModel name , 'Agregate')
 ]
 
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> addInvocations: invocations to: agClass [
+{ #category : #adding }
+MooseModelAgregator >> addInvocation: anInvocation to: agClass [
 
-	| agMeth |
-"	1halt."
+	| agMeth candidat |
+	"	1halt."
 	agMeth := self getAgMethodFor: agClass.
-	invocations do: [ :inv | 
-		(inv sender parentType isStub not and: [inv sender parentType mooseName ~= agClass mooseName] ) ifTrue: [ "
+	anInvocation candidates do: [ :cand | 
+		cand parentType mooseName ~= agClass mooseName ifTrue: [ 
+			candidat := self getAgMethodFor: (self
+					           getExistingEntity: cand parentType
+					           from: self agregatedModel).
+			(self checkExistingInvocationSender: agMeth candidate: candidat) 
+				ifFalse: [ "
 			1halt."
-			(self createAssociationFrom: inv)
-				sender: (self getAgMethodFor: (self getExistingEntity:  inv sender parentType  from: self agregatedModel ));
-				addCandidate: agMeth;
-				signature: inv signature ] ]
+					(self createAssociationFrom: anInvocation)
+						sender: agMeth;
+						addCandidate: candidat;
+						signature: anInvocation signature ] ] ]
 ]
 
 { #category : #'as yet unclassified' }
-MooseModelAgregator >> addSubInheritances: subInheritances to: agClass [
-	subInheritances do: [ :subI | 
-		(self createAssociationFrom: subI ) superclass: agClass ; subclass: (self getExistingEntity: subI subclass from: self agregatedModel) ] 
+MooseModelAgregator >> addOutgoingInvocations: invocations to: agClass [
+
+	invocations do: [ :inv | self addInvocation: inv to: agClass ]
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> addReference: ref to: agClass [ 
+| agMeth referredType |
+	"	1halt."
+	agMeth := self getAgMethodFor: agClass.
+	ref referencer parentType ~= ref referredType  
+		ifTrue: [ 
+			referredType := (self
+					           getExistingEntity: ref referredType
+					           from: self agregatedModel).
+			(self checkExistingReferenceReferencer: agMeth referredType: referredType) 
+				ifFalse: [ "
+			1halt."
+					(self createAssociationFrom: ref)
+						referencer: agMeth ;
+						referredType: referredType ] ]
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> addReferences: references to: agClass [
+
+	references do: [ :ref | self addReference: ref to: agClass ]
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> addSuperInheritances: superInheritances to: agClass [
+	superInheritances do: [ :supI | |inh |
+		inh := (self createAssociationFrom: supI ).
+		inh subclass: agClass.
+		inh superclass: (self getExistingEntity: supI superclass from: self agregatedModel) ] 
 	
 ]
 
 { #category : #'as yet unclassified' }
 MooseModelAgregator >> agregateAClass: anOriginClass [
 
-	| agClass invocations |
+	| agClass invocations references |
 	agClass := self
 		           getExistingEntity: anOriginClass 
 		           from: self agregatedModel.
-	anOriginClass subInheritances ifNotEmpty: [ 
-		self addSubInheritances: anOriginClass subInheritances to: agClass ].
-	invocations := anOriginClass queryIncoming: FamixTInvocation.
+	anOriginClass superInheritances ifNotEmpty: [ 
+		self addSuperInheritances: anOriginClass superInheritances to: agClass ].
+	invocations := anOriginClass queryOutgoing: FamixTInvocation.
 	invocations ifNotEmpty: [ 
-		self addInvocations: invocations to: agClass
+		self addOutgoingInvocations: invocations to: agClass
+		 ]  .
+	references := anOriginClass queryOutgoing: FamixTReference.
+	references ifNotEmpty: [ 
+		self addReferences: invocations to: agClass
 		 ]  
-]
-
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> agregateAClass: anOriginClass in: aPackage [
-	(self checkExistingEntity: anOriginClass in: aPackage) ifFalse: [ self createEntityFrom: anOriginClass ].
 ]
 
 { #category : #'as yet unclassified' }
@@ -85,6 +121,17 @@ MooseModelAgregator >> checkExistingEntity: anOriginEntity in: anAggregateContai
 ]
 
 { #category : #'as yet unclassified' }
+MooseModelAgregator >> checkExistingInvocationSender: sender candidate: agMeth [
+
+	^ agMeth incomingInvocations anySatisfy: [ :inv | inv sender = sender ]
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> checkExistingReferenceReferencer: agMeth referredType: referredType [
+	^agMeth outgoingReferences anySatisfy: [ :ref | ref referredType ] 
+]
+
+{ #category : #'as yet unclassified' }
 MooseModelAgregator >> computeSetterFrom: aGetter [
 	^ (aGetter , ':') asSymbol
 	
@@ -94,7 +141,7 @@ MooseModelAgregator >> computeSetterFrom: aGetter [
 MooseModelAgregator >> createAPackage: anOriginPackage [
 "self haltIf: [ anOriginPackage name = 'DataFrame' ] ."
 	self createEntityFrom: anOriginPackage. 
-	anOriginPackage classes do: [ :c | (self createEntityFrom: c)].
+
 ]
 
 { #category : #'as yet unclassified' }
@@ -111,6 +158,13 @@ MooseModelAgregator >> createAssociationFrom: anAssociation [
 	^ anAssociation class
 		  new
 		  mooseModel: agregatedModel
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> createClasses [
+
+	self originModel allClasses do: [ :cl | 
+		 self createEntityFrom: cl ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -146,7 +200,7 @@ MooseModelAgregator >> createNamespaces [
 MooseModelAgregator >> createPackages [
 
 	self originModel allPackages do: [ :pkg | 
-		 self createAPackage: pkg ]
+		 self createEntityFrom: pkg ]
 ]
 
 { #category : #'as yet unclassified' }
