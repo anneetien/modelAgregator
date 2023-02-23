@@ -170,12 +170,14 @@ MooseModelAgregator >> createClasses [
 { #category : #'as yet unclassified' }
 MooseModelAgregator >> createEntityFrom: anEntity [
 "In this method, we first get the parentSelectors of the original entity. For each of these parents, we look for the corresponding entity in the new model. We create a new entity (in the new model with the same type of the original one). For this new entity we put its parents using the dictionary. The order is important because if we start by creating the entity, and if the class has the same name has the package, when we look for the entity in the new model, class and package have the same mooseName and it raises an error."
-	| newEntity dict |
+	| newEntity dict parent |
 	dict := Dictionary new.
 	anEntity parentSelectors do: [ :sel | 
+		parent := (anEntity perform: sel).
+		parent ifNotNil: [ 
 		dict at: sel put: (self
-				 getExistingEntity: (anEntity perform: sel)
-				 from: self agregatedModel) ].
+				 getExistingEntity: parent
+				 from: self agregatedModel)] ].
 
 	newEntity := anEntity class new
 		             name: anEntity name;
@@ -184,7 +186,9 @@ MooseModelAgregator >> createEntityFrom: anEntity [
 	dict associationsDo: [ :assoc | 
 		newEntity
 			perform: (self computeSetterFrom: assoc key)
-			with: assoc value ].
+			with: assoc value.
+			assoc value resetMooseName.
+			newEntity resetMooseName   ].
 	
 	newEntity mooseModel: agregatedModel.
 ]
@@ -199,8 +203,14 @@ MooseModelAgregator >> createNamespaces [
 { #category : #'as yet unclassified' }
 MooseModelAgregator >> createPackages [
 
-	self originModel allPackages do: [ :pkg | 
-		 self createEntityFrom: pkg ]
+	self createRootPackages.
+	self originRootPackages do: [ :aPackage | self createSubPackagesOf: aPackage ]
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> createRootPackages [
+
+	self originRootPackages do: [ :pkg | self createAPackage: pkg ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -215,6 +225,12 @@ MooseModelAgregator >> createStubEntityFrom: anEntity [
 		newEntity perform: (self computeSetterFrom: sel) with: (self
 				 getExistingEntity: (anEntity perform: sel)
 				 from: self agregatedModel) ]
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> createSubPackagesOf: originPackage [ 
+	self createEntityFrom: originPackage .
+	(originPackage childEntities select: [ :each | each class allTraits includes: FamixTPackage  ]) do: [ :pkg | self createSubPackagesOf: pkg ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -239,4 +255,10 @@ MooseModelAgregator >> originModel [
 MooseModelAgregator >> originModel: anObject [
 
 	originModel := anObject
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> originRootPackages [ 
+
+	^ self originModel entities select: [ :e | (e class allTraits includes: FamixTPackage) and: [ e parentPackage isNil ] ].
 ]
