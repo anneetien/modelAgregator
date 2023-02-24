@@ -14,7 +14,7 @@ MooseModelAgregator class >> agregate: aMooseModel [
 	^self
 		new
 		originModel: aMooseModel;
-		agregatedModel: (MooseModel named: aMooseModel name , 'Agregate')
+		agregatedModel: (aMooseModel class named: aMooseModel name , 'Agregate')
 ]
 
 { #category : #adding }
@@ -180,17 +180,18 @@ MooseModelAgregator >> createEntityFrom: anEntity [
 				 from: self agregatedModel)] ].
 
 	newEntity := anEntity class new
-		             name: anEntity name;
 		             isStub: anEntity isStub.
-
+	newEntity mooseModel: agregatedModel.
 	dict associationsDo: [ :assoc | 
 		newEntity
 			perform: (self computeSetterFrom: assoc key)
 			with: assoc value.
-			assoc value resetMooseName.
-			newEntity resetMooseName   ].
+			"assoc value resetMooseName."
+			"newEntity resetMooseName."
+			   ].
+		newEntity name: anEntity name.
 	
-	newEntity mooseModel: agregatedModel.
+	
 ]
 
 { #category : #'as yet unclassified' }
@@ -204,7 +205,7 @@ MooseModelAgregator >> createNamespaces [
 MooseModelAgregator >> createPackages [
 
 	self createRootPackages.
-	self originRootPackages do: [ :aPackage | self createSubPackagesOf: aPackage ]
+	(self originRootPackages  flatCollect: [ :aPackage | aPackage childEntities select: [:e | e class allTraits includes: FamixTPackage] ] ) do: [:subPkg | self createSubPackagesOf: subPkg  ]
 ]
 
 { #category : #'as yet unclassified' }
