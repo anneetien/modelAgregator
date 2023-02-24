@@ -17,6 +17,18 @@ MooseModelAgregator class >> agregate: aMooseModel [
 		agregatedModel: (aMooseModel class named: aMooseModel name , 'Agregate')
 ]
 
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> acceptedChildrenOf: aPackage [
+
+	^ aPackage children select: [ :e | 
+		  e class allTraits includesAny: { 
+				  FamixTPackage.
+				  FamixTClass.
+				  FamixTImplementable.
+				  FamixTParameterizedType.
+				  FamixTWithParameterizedTypes} ]
+]
+
 { #category : #adding }
 MooseModelAgregator >> addInvocation: anInvocation to: agClass [
 
@@ -24,7 +36,8 @@ MooseModelAgregator >> addInvocation: anInvocation to: agClass [
 	"	1halt."
 	agMeth := self getAgMethodFor: agClass.
 	anInvocation candidates do: [ :cand | 
-		cand parentType mooseName ~= agClass mooseName ifTrue: [ 
+		((self isAcceptedTypeForAssociation: cand parentType) and:
+		[cand parentType mooseName ~= agClass mooseName]) ifTrue: [ 
 			candidat := self getAgMethodFor: (self
 					           getExistingEntity: cand parentType
 					           from: self agregatedModel).
@@ -48,7 +61,7 @@ MooseModelAgregator >> addReference: ref to: agClass [
 | agMeth referredType |
 	"	1halt."
 	agMeth := self getAgMethodFor: agClass.
-	ref referencer parentType ~= ref referredType  
+	((ref referencer parentType ~= ref referredType) and: [ ref referredType isClass or: [ ref referredType isInterface ] ] ) 
 		ifTrue: [ 
 			referredType := (self
 					           getExistingEntity: ref referredType
@@ -91,7 +104,7 @@ MooseModelAgregator >> agregateAClass: anOriginClass [
 		 ]  .
 	references := anOriginClass queryOutgoing: FamixTReference.
 	references ifNotEmpty: [ 
-		self addReferences: invocations to: agClass
+		self addReferences: references to: agClass
 		 ]  
 ]
 
@@ -128,7 +141,7 @@ MooseModelAgregator >> checkExistingInvocationSender: sender candidate: agMeth [
 
 { #category : #'as yet unclassified' }
 MooseModelAgregator >> checkExistingReferenceReferencer: agMeth referredType: referredType [
-	^agMeth outgoingReferences anySatisfy: [ :ref | ref referredType ] 
+	^agMeth outgoingReferences anySatisfy: [ :ref | ref referredType = referredType ] 
 ]
 
 { #category : #'as yet unclassified' }
@@ -158,6 +171,14 @@ MooseModelAgregator >> createAssociationFrom: anAssociation [
 	^ anAssociation class
 		  new
 		  mooseModel: agregatedModel
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> createChildEntity: originChild [
+
+	self createEntityFrom: originChild.
+	(self acceptedChildrenOf: originChild) do: [ :child | 
+		self createChildEntity: child ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -205,7 +226,9 @@ MooseModelAgregator >> createNamespaces [
 MooseModelAgregator >> createPackages [
 
 	self createRootPackages.
-	(self originRootPackages  flatCollect: [ :aPackage | aPackage childEntities select: [:e | e class allTraits includes: FamixTPackage] ] ) do: [:subPkg | self createSubPackagesOf: subPkg  ]
+	(self originRootPackages flatCollect: [ :aPackage | 
+		 self acceptedChildrenOf: aPackage ]) do: [ :child | 
+		self createChildEntity: child ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -244,6 +267,15 @@ MooseModelAgregator >> getAgMethodFor: agClass [
 MooseModelAgregator >> getExistingEntity: anEntity from: aMooseModel [
 
 	^ aMooseModel entityNamed: anEntity mooseName ifAbsent: [ self halt. ] 
+]
+
+{ #category : #'as yet unclassified' }
+MooseModelAgregator >> isAcceptedTypeForAssociation: anEntity [
+
+	^ anEntity class allTraits includesAny: { 
+				  FamixTPackage.
+				  FamixTClass.
+				  FamixJavaInterface.}
 ]
 
 { #category : #accessing }
