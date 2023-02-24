@@ -108,13 +108,6 @@ MooseModelAgregator >> agregateAClass: anOriginClass [
 		 ]  
 ]
 
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> agregateAPackage: anOriginPackage [
-	| pkg |
-	pkg := self getExistingEntity: anOriginPackage from:  self agregatedModel.
-	anOriginPackage classes do: [ :c | self agregateAClass: c  ]
-]
-
 { #category : #accessing }
 MooseModelAgregator >> agregatedModel [
 
@@ -125,12 +118,6 @@ MooseModelAgregator >> agregatedModel [
 MooseModelAgregator >> agregatedModel: anObject [
 
 	agregatedModel := anObject
-]
-
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> checkExistingEntity: anOriginEntity in: anAggregateContainer [
-
-	^ anAggregateContainer children anySatisfy: [ :e | e name = anOriginEntity name ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -148,13 +135,6 @@ MooseModelAgregator >> checkExistingReferenceReferencer: agMeth referredType: re
 MooseModelAgregator >> computeSetterFrom: aGetter [
 	^ (aGetter , ':') asSymbol
 	
-]
-
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> createAPackage: anOriginPackage [
-"self haltIf: [ anOriginPackage name = 'DataFrame' ] ."
-	self createEntityFrom: anOriginPackage. 
-
 ]
 
 { #category : #'as yet unclassified' }
@@ -179,13 +159,6 @@ MooseModelAgregator >> createChildEntity: originChild [
 	self createEntityFrom: originChild.
 	(self acceptedChildrenOf: originChild) do: [ :child | 
 		self createChildEntity: child ]
-]
-
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> createClasses [
-
-	self originModel allClasses do: [ :cl | 
-		 self createEntityFrom: cl ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -219,7 +192,11 @@ MooseModelAgregator >> createEntityFrom: anEntity [
 MooseModelAgregator >> createNamespaces [
 
 	self originModel allModelNamespaces do: [ :ns | 
-		 self createEntityFrom: ns ]
+		 self createEntityFrom: ns ].
+	self createRootPackages.
+	(self originRootPackages flatCollect: [ :aPackage | 
+		 self acceptedChildrenOf: aPackage ]) do: [ :child | 
+		self createChildEntity: child ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -234,27 +211,7 @@ MooseModelAgregator >> createPackages [
 { #category : #'as yet unclassified' }
 MooseModelAgregator >> createRootPackages [
 
-	self originRootPackages do: [ :pkg | self createAPackage: pkg ]
-]
-
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> createStubEntityFrom: anEntity [
-
-	| newEntity |
-	newEntity := anEntity class new
-		             name: anEntity name;
-		             mooseModel: agregatedModel;
-						isStub: true.
-	anEntity parentSelectors do: [ :sel | 
-		newEntity perform: (self computeSetterFrom: sel) with: (self
-				 getExistingEntity: (anEntity perform: sel)
-				 from: self agregatedModel) ]
-]
-
-{ #category : #'as yet unclassified' }
-MooseModelAgregator >> createSubPackagesOf: originPackage [ 
-	self createEntityFrom: originPackage .
-	(originPackage childEntities select: [ :each | each class allTraits includes: FamixTPackage  ]) do: [ :pkg | self createSubPackagesOf: pkg ]
+	self originRootPackages do: [ :pkg | self createEntityFrom: pkg ]
 ]
 
 { #category : #'as yet unclassified' }
@@ -291,7 +248,8 @@ MooseModelAgregator >> originModel: anObject [
 ]
 
 { #category : #'as yet unclassified' }
-MooseModelAgregator >> originRootPackages [ 
+MooseModelAgregator >> originRootPackages [
 
-	^ self originModel entities select: [ :e | (e class allTraits includes: FamixTPackage) and: [ e parentPackage isNil ] ].
+	^ self originModel entities select: [ :e | 
+		  (e class allTraits includes: FamixTPackage) and: [ e parents isEmpty ] ]
 ]
